@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecossistemas de Florianópolis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals & Nature Tones -->
+    <!-- Application Structure Plan: A tab-based single-page application (SPA) was chosen to provide a clear, user-guided exploration of Florianópolis's ecosystems. The structure begins with a "Visão Geral" (Overview) to provide immediate high-level context and quantitative data. Users can then navigate thematically between "Mata Atlântica," "Restinga," and "Manguezal" for detailed information. A final, crucial section, "Ameaças e Conservação," synthesizes the challenges and solutions across all ecosystems. This tabbed structure is highly intuitive, prevents cognitive overload by presenting one topic at a time, and allows users to compare ecosystems easily by switching between views. The flow is logical: from general overview to specific details, and finally to the overarching issue of conservation. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: ~40% of the island is a Permanent Preservation Area (APP). -> Goal: Show proportion. -> Viz: Donut Chart in "Visão Geral". -> Interaction: Hover tooltips. -> Justification: Excellent for instantly communicating a simple part-to-whole relationship, setting the stage for the importance of conservation. -> Library: Chart.js.
+        - Report Info: Mangroves are nurseries for marine life and vital for fisheries (>95% of seafood depends on them). -> Goal: Emphasize the immense economic and ecological importance of mangroves. -> Viz: Horizontal Bar Chart in "Manguezal" section. -> Interaction: Hover tooltips. -> Justification: A horizontal bar chart powerfully illustrates the stark dependency, creating a high-impact visual that text alone cannot achieve. -> Library: Chart.js.
+        - Report Info: Detailed characteristics of each ecosystem (flora, fauna, function). -> Goal: Inform and organize qualitative data. -> Viz: Styled HTML cards with icons (Unicode characters). -> Interaction: None needed, focus on readability. -> Justification: Cards break down complex information into digestible, visually appealing chunks, improving readability and retention.
+        - Report Info: Threats (urbanization, pollution) and Conservation Efforts (UCs, restoration). -> Goal: Compare challenges and solutions. -> Viz: Two-column HTML layout. -> Interaction: None, direct comparison. -> Justification: A side-by-side layout provides a clear, balanced perspective on the central conflict affecting the island's ecosystems.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8; /* Warm off-white */
+        }
+        :root {
+            --color-primary: #4A5C43; /* Muted Green */
+            --color-secondary: #A49B8D; /* Taupe */
+            --color-accent: #D4B79E; /* Light Tan */
+            --color-text: #413F3D; /* Dark Brown/Charcoal */
+            --color-bg: #FDFBF8;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            color: var(--color-secondary);
+            border-bottom: 2px solid transparent;
+        }
+        .nav-button.active, .nav-button:hover {
+            color: var(--color-primary);
+            border-bottom: 2px solid var(--color-primary);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .gemini-button {
+            background-color: var(--color-primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .gemini-button:hover {
+            background-color: #3B4A35;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+         .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            color: #888;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--color-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold" style="color: var(--color-primary);">Ecossistemas da Ilha de Florianópolis</h1>
+            <p class="mt-2 text-lg" style="color: var(--color-text);">Uma exploração interativa da Mata Atlântica, Restinga e Manguezal.</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center border-b mb-8 gap-x-2 md:gap-x-6 gap-y-2">
+            <button class="nav-button active font-medium py-2 px-3" data-target="overview">Visão Geral</button>
+            <button class="nav-button font-medium py-2 px-3" data-target="forest">Mata Atlântica</button>
+            <button class="nav-button font-medium py-2 px-3" data-target="restinga">Restinga</button>
+            <button class="nav-button font-medium py-2 px-3" data-target="mangrove">Manguezal</button>
+            <button class="nav-button font-medium py-2 px-3" data-target="conservation">Ameaças & Conservação</button>
+            <button class="nav-button font-medium py-2 px-3" data-target="credits">Créditos</button>
+        </nav>
+
+        <main>
+            <!-- Visão Geral Section -->
+            <section id="overview" class="content-section">
+                <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Um Mosaico de Vida</h2>
+                    <p style="color: var(--color-text);">
+                        A Ilha de Santa Catarina, onde se localiza Florianópolis, é um território privilegiado que abriga um complexo mosaico de ecossistemas interligados. Da exuberância das florestas nas encostas à resiliência das vegetações costeiras, cada ambiente desempenha um papel vital no equilíbrio ecológico e na identidade da ilha. Esta seção oferece uma visão geral da distribuição e importância dessas áreas.
+                    </p>
+                </div>
+
+                <div class="max-w-4xl mx-auto mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-center mb-4" style="color: var(--color-primary);">Vídeo Introdutório</h3>
+                         <div class="aspect-w-16 aspect-h-9">
+                            <iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/L9XBFLVwQaw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-center mb-4" style="color: var(--color-primary);">Uso e Proteção do Solo na Ilha</h3>
+                        <div class="chart-container">
+                            <canvas id="landUseChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-bold" style="color: var(--color-text);">🌳 Mata Atlântica</h3>
+                            <p class="mt-1">Cobre as elevações e morros da ilha, sendo um hotspot de biodiversidade, fundamental para a manutenção dos recursos hídricos.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-bold" style="color: var(--color-text);">🌿 Restinga</h3>
+                            <p class="mt-1">Ecossistema costeiro que se desenvolve sobre solos arenosos, atuando como uma barreira natural que protege a ilha da erosão marinha.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-bold" style="color: var(--color-text);">🦀 Manguezal</h3>
+                            <p class="mt-1">Berçário da vida marinha. Localizado em áreas estuarinas, é um dos ecossistemas mais produtivos do planeta, essencial para a pesca.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mata Atlântica Section -->
+            <section id="forest" class="content-section hidden">
+                 <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Mata Atlântica: O Coração Verde da Ilha</h2>
+                     <p style="color: var(--color-text);">
+                        A Floresta Ombrófila Densa, formação da Mata Atlântica presente em Florianópolis, é o ecossistema que cobre os morros e maciços, formando uma paisagem icônica. Apesar de sua fragmentação, Florianópolis se destaca como a segunda capital brasileira com a maior área preservada deste bioma. Essa floresta é vital para a regulação do clima local e, principalmente, para a proteção das nascentes e cursos d'água que abastecem a ilha.
+                    </p>
+                    <div class="mt-6">
+                        <button class="gemini-button" data-ecosystem="Mata Atlântica">✨ Gerar Plano de Aula</button>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Características</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Alta umidade e grande volume de chuvas.</li>
+                            <li>Vegetação densa e exuberante com árvores de grande porte.</li>
+                            <li>Solo rico em matéria orgânica.</li>
+                            <li>Fundamental para a recarga de aquíferos.</li>
+                        </ul>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Flora Típica</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Palmito-juçara (Euterpe edulis)</li>
+                            <li>Figueiras (Ficus spp.)</li>
+                            <li>Canelas (Ocotea spp.)</li>
+                            <li>Orquídeas e bromélias diversas.</li>
+                        </ul>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Fauna Representativa</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Capivara e Macaco-prego.</li>
+                            <li>Tucanos, Gralhas-azuis e Tiês-sangue.</li>
+                            <li>Cutias e tamanduás.</li>
+                            <li>Inúmeras espécies de anfíbios e insetos.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Restinga Section -->
+            <section id="restinga" class="content-section hidden">
+                <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Restinga: A Guardiã da Costa</h2>
+                     <p style="color: var(--color-text);">
+                       A restinga é um ecossistema pioneiro, que se forma sobre os depósitos de areia ao longo do litoral. Suas plantas são verdadeiras especialistas em sobrevivência, adaptadas a condições de alta salinidade, ventos constantes e solo pobre em nutrientes. Em Florianópolis, a restinga é fundamental para a fixação das dunas, prevenindo a erosão das praias e protegendo as áreas mais interiores do avanço do mar, especialmente durante ressacas.
+                    </p>
+                    <div class="mt-6">
+                        <button class="gemini-button" data-ecosystem="Restinga">✨ Gerar Plano de Aula</button>
+                    </div>
+                </div>
+                 <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Características</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Solo arenoso e com alta permeabilidade.</li>
+                            <li>Vegetação varia de rasteira a arbustiva.</li>
+                            <li>Alta exposição ao sol e ao vento.</li>
+                            <li>Função principal de estabilização de dunas.</li>
+                        </ul>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Flora Típica</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Aroeira-vermelha (Schinus terebinthifolia)</li>
+                            <li>Feijão-de-praia (Canavalia rosea)</li>
+                            <li>Cactos e bromélias de chão.</li>
+                            <li>Gabiroba (Campomanesia xanthocarpa)</li>
+                        </ul>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold" style="color: var(--color-text);">Fauna Representativa</h3>
+                        <ul class="mt-2 space-y-2 list-disc list-inside">
+                            <li>Lagartinho-da-praia (Liolaemus occipitalis)</li>
+                            <li>Coruja-buraqueira.</li>
+                            <li>Gambás e pequenos roedores.</li>
+                            <li>Aves migratórias que usam a área para descanso.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="max-w-4xl mx-auto mt-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-center mb-4" style="color: var(--color-primary);">Vídeo sobre a Restinga</h3>
+                         <div class="aspect-w-16 aspect-h-9">
+                            <iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/o2gc5249bpw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Manguezal Section -->
+            <section id="mangrove" class="content-section hidden">
+                <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Manguezal: O Berçário do Oceano</h2>
+                     <p style="color: var(--color-text);">
+                        Os manguezais são ecossistemas de transição entre os ambientes terrestre e marinho. Desenvolvem-se em estuários e áreas abrigadas, onde as águas dos rios encontram o mar. Suas árvores, com raízes adaptadas, são tolerantes à salinidade. O manguezal do Itacorubi é o segundo maior manguezal urbano do Brasil e, como todos os outros, funciona como um filtro biológico, além de ser o local de reprodução e desenvolvimento para inúmeras espécies, sustentando a atividade pesqueira.
+                    </p>
+                    <div class="mt-6">
+                        <button class="gemini-button" data-ecosystem="Manguezal">✨ Gerar Plano de Aula</button>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                         <div class="bg-white p-6 rounded-lg shadow-md mb-4">
+                            <h3 class="text-xl font-bold" style="color: var(--color-text);">Características</h3>
+                            <ul class="mt-2 space-y-2 list-disc list-inside">
+                                <li>Solo lodoso, pobre em oxigênio.</li>
+                                <li>Encontro de água doce e salgada.</li>
+                                <li>Raízes aéreas (pneumatóforos) para respiração.</li>
+                                <li>Alta produtividade biológica.</li>
+                                <li>Flora: Mangue-vermelho, Mangue-branco, Mangue-preto.</li>
+                                <li>Fauna: Caranguejos, siris, ostras, aves e peixes.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-center mb-4" style="color: var(--color-primary);">Dependência da Pesca Marinha</h3>
+                        <div class="chart-container">
+                            <canvas id="fisheriesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Ameaças e Conservação Section -->
+            <section id="conservation" class="content-section hidden">
+                <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Equilíbrio Frágil: Ameaças e Conservação</h2>
+                    <p style="color: var(--color-text);">
+                        Apesar de sua riqueza, os ecossistemas de Florianópolis enfrentam constantes pressões. O crescimento urbano desordenado, a poluição e a introdução de espécies exóticas são as principais ameaças. Em contrapartida, a sociedade e o poder público têm se mobilizado através da criação de Unidades de Conservação (UCs) e projetos de recuperação, buscando garantir a proteção e a coexistência harmônica entre o desenvolvimento e a natureza.
+                    </p>
+                </div>
+                <div class="max-w-4xl mx-auto mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-center mb-4" style="color: var(--color-primary);">Conservação em Ação</h3>
+                         <div class="aspect-w-16 aspect-h-9">
+                            <iframe class="w-full h-full rounded-md" src="https://www.youtube.com/embed/z1h6LDx8xog" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-red-50 p-6 rounded-lg border border-red-200">
+                        <h3 class="text-2xl font-bold text-red-800 mb-4">Principais Ameaças</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-bold">Expansão Urbana e Especulação Imobiliária</h4>
+                                <p>Abertura de estradas e construções em áreas de encosta (Mata Atlântica), restingas e aterramento de mangues.</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold">Poluição e Esgoto</h4>
+                                <p>Lançamento de efluentes domésticos e industriais sem tratamento, contaminando principalmente os manguezais e a água.</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold">Espécies Exóticas Invasoras</h4>
+                                <p>Pinus e outras espécies que competem com a vegetação nativa, descaracterizando os ecossistemas, especialmente a restinga.</p>
+                            </div>
+                             <div>
+                                <h4 class="font-bold">Turismo Desordenado</h4>
+                                <p>Pisoteio da vegetação de restinga para acesso às praias e produção de lixo em áreas sensíveis.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-green-50 p-6 rounded-lg border border-green-200">
+                        <h3 class="text-2xl font-bold text-green-800 mb-4">Ações de Conservação</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-bold">Unidades de Conservação (UCs)</h4>
+                                <p>Criação de parques e reservas para proteger áreas significativas, como a Estação Ecológica de Carijós (manguezal) e o Parque Municipal da Lagoa do Peri (Mata Atlântica).</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold">Projetos de Restauração</h4>
+                                <p>Iniciativas de plantio de mudas nativas em áreas de restinga degradadas e remoção de espécies exóticas.</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold">Fiscalização Ambiental</h4>
+                                <p>Órgãos como a FLORAM atuam para coibir construções irregulares e a degradação ambiental.</p>
+                            </div>
+                             <div>
+                                <h4 class="font-bold">Educação Ambiental</h4>
+                                <p>Programas que visam conscientizar a população e os turistas sobre a importância da preservação dos ecossistemas locais.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Créditos Section -->
+            <section id="credits" class="content-section hidden">
+                <div class="text-center mb-8 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--color-primary);">Nossos Pesquisadores</h2>
+                    <p style="color: var(--color-text);">
+                        Este trabalho é o resultado da dedicação e curiosidade dos nossos jovens cientistas.
+                    </p>
+                </div>
+                <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
+                    <img src="Alunos.jpg"alt="Foto dos alunos: Maria Joana, Benjamim, Mikaela e Guilherme" class="rounded-lg mx-auto mb-4 w-full h-auto object-cover">
+                    <p class="text-center text-lg font-medium" style="color: var(--color-text);">
+                        Da esquerda para a direita: Maria Joana, Benjamim, Mikaela e Guilherme.
+                    </p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal para a funcionalidade Gemini -->
+    <div id="geminiModal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" id="modalClose">&times;</span>
+            <div id="modalBody">
+                <!-- Conteúdo será injetado aqui -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const navButtons = document.querySelectorAll('.nav-button');
+            const contentSections = document.querySelectorAll('.content-section');
+            const geminiButtons = document.querySelectorAll('.gemini-button');
+            const modal = document.getElementById('geminiModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalClose = document.getElementById('modalClose');
+
+            // Navegação por abas
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-target');
+                    navButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    contentSections.forEach(section => {
+                        section.classList.toggle('hidden', section.id !== targetId);
+                    });
+                });
+            });
+
+            // Funções do Modal
+            const showModal = () => modal.classList.add('visible');
+            const hideModal = () => modal.classList.remove('visible');
+            const showLoading = () => {
+                modalBody.innerHTML = '<div class="spinner"></div><p class="text-center">A gerar ideias com a Gemini...</p>';
+            };
+            const displayContent = (htmlContent) => {
+                 modalBody.innerHTML = htmlContent;
+            };
+
+            modalClose.addEventListener('click', hideModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideModal();
+                }
+            });
+
+            // Lógica da API Gemini
+            const callGeminiAPI = async (prompt) => {
+                const apiKey = ""; // A chave da API é gerida pelo ambiente de execução, não precisa de a definir aqui.
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (text) {
+                        // Substituir quebras de linha por <br> e formatar títulos
+                        const formattedText = text
+                            .replace(/\n/g, '<br>')
+                            .replace(/(\d\.\s)/g, '<br><strong>$1</strong>');
+                        displayContent(`<div class="prose max-w-none">${formattedText}</div>`);
+                    } else {
+                        throw new Error("Resposta da API inválida.");
+                    }
+                } catch (error) {
+                    console.error("Erro ao chamar a API Gemini:", error);
+                    displayContent('<p class="text-red-500 text-center">Ocorreu um erro ao gerar o conteúdo. Por favor, tente novamente.</p>');
+                }
+            };
+            
+            geminiButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const ecosystem = button.dataset.ecosystem;
+                    const prompt = `Aja como um pedagogo criativo. Crie um plano de aula conciso e envolvente para alunos do 5º ano do ensino fundamental sobre o ecossistema "${ecosystem}" em Florianópolis. O plano deve incluir:
+                    1. Um objetivo de aprendizagem claro.
+                    2. Duas atividades práticas e divertidas para fazer em sala de aula ou ao ar livre.
+                    3. Uma pergunta estimulante para iniciar uma discussão em grupo.
+                    Formate a sua resposta de forma clara e organizada.`;
+                    
+                    showModal();
+                    showLoading();
+                    callGeminiAPI(prompt);
+                });
+            });
+
+
+            // Gráficos Chart.js
+            const landUseCtx = document.getElementById('landUseChart').getContext('2d');
+            new Chart(landUseCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Área de Preservação Permanente (APP)', 'Outras Áreas'],
+                    datasets: [{
+                        data: [40, 60],
+                        backgroundColor: ['#4A5C43', '#D4B79E'],
+                        borderColor: '#FDFBF8',
+                        borderWidth: 4,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                             labels: {
+                                color: '#413F3D',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const fisheriesCtx = document.getElementById('fisheriesChart').getContext('2d');
+            new Chart(fisheriesCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Recursos Pesqueiros'],
+                    datasets: [{
+                        label: 'Dependente do Manguezal',
+                        data: [95],
+                        backgroundColor: '#4A5C43',
+                        borderRadius: 4
+                    }, {
+                        label: 'Outras Fontes',
+                        data: [5],
+                        backgroundColor: '#A49B8D',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%'
+                                }
+                            }
+                        },
+                        y: {
+                            stacked: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                             labels: {
+                                color: '#413F3D',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
+
